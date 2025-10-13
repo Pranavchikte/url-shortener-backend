@@ -17,6 +17,7 @@ origins = [
     "http://localhost",
     "http://localhost:3000", # Default Next.js port
     "http://localhost:5173", # Default Vite port
+    "https://url-shortener-frontend-ctrl.vercel.app"
 ]
 
 app.add_middleware(
