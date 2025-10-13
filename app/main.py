@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+from fastapi.middleware.cors import CORSMiddleware
 
 from . import database, models, schemas, crud, utils
 
@@ -12,6 +13,19 @@ models.Base.metadata.create_all(bind=database.engine)
 
 app =  FastAPI()
 
+origins = [
+    "http://localhost",
+    "http://localhost:3000", # Default Next.js port
+    "http://localhost:5173", # Default Vite port
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"], # Allows all methods (GET, POST, etc.)
+    allow_headers=["*"], # Allows all headers
+)
 
 def get_db():
     db = database.SessionLocal()

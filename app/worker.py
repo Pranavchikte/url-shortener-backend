@@ -1,12 +1,12 @@
 from celery import Celery
 from sqlalchemy.orm import Session
-
 from . import crud, database
+from .config import settings
 
 celery_app = Celery(
     "url_shortener",
-    broker="redis://redis:6379/0",
-    backend="redis://redis:6379/0" 
+    broker=settings.REDIS_URL, 
+    backend=settings.REDIS_URL
 )
 
 @celery_app.task
