@@ -19,7 +19,9 @@ origins = [
     "http://localhost",
     "http://localhost:3000",
     "http://localhost:5173",
-    "url-shortener-frontend-git-main-pranavchiktes-projects.vercel.app",
+    "https://url-shortener-frontend-2yafzg1yn-pranavchiktes-projects.vercel.app",
+    "https://url-shortener-frontend-git-main-pranavchiktes-projects.vercel.app",
+    "https://url-shortener-frontend-rose.vercel.app"
     # https://url-shortener-frontend-rose.vercel.app/login
 ]
 
