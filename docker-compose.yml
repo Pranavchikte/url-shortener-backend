@@ -7,10 +7,16 @@ services:
       - postgres_data:/var/lib/postgresql/data/
     environment:
       - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=password
+      - POSTGROS_PASSWORD=password
       - POSTGRES_DB=url_shortener_db
     ports:
       - "5432:5432"
+    # FIX: The healthcheck block is now correctly indented inside the 'db' service
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d url_shortener_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7
@@ -25,8 +31,10 @@ services:
     env_file:
       - .env
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   worker:
     build: .
@@ -36,8 +44,10 @@ services:
     env_file:
       - .env
     depends_on:
-      - db
-      - redis
+      db: 
+        condition: service_healthy
+      redis:
+        condition: service_started
 
 volumes:
   postgres_data:

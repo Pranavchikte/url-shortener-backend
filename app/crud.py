@@ -67,3 +67,48 @@ def update_db_url_clicks(db: Session, short_code: str):
         models.URL.last_clicked_at: func.now(),
     })
     db.commit()
+    
+def get_user_links(db: Session, owner_id: int) -> list[models.URL]:
+    return db.query(models.URL).filter(models.URL.owner_id == owner_id).all()
+
+
+def get_user_recent_links(db: Session, owner_id: int, limit: int = 5) -> list[models.URL]:
+    return (
+        db.query(models.URL)
+        .filter(models.URL.owner_id == owner_id)
+        .filter(models.URL.is_active == True)  # FIX: Add this line to filter for active links
+        .order_by(models.URL.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    
+
+# vvv ADD THIS NEW FUNCTION vvv
+def update_db_url_status(db: Session, short_code: str, owner_id: int) -> models.URL | None:
+    
+    db_url = db.query(models.URL).filter(
+        models.URL.short_code == short_code,
+        models.URL.owner_id == owner_id
+    ).first()
+
+    if db_url:
+        db_url.is_active = not db_url.is_active
+        db.commit()
+        db.refresh(db_url)
+    
+    return db_url
+
+# New Endpoint 
+
+def delete_db_link(db: Session, short_code: str, owner_id: int) -> models.URL | None:
+    db_url = db.query(models.URL).filter(
+        models.URL.short_code == short_code,
+        models.URL.owner_id == owner_id
+    ).first()
+
+    if db_url:
+        db.delete(db_url)
+        db.commit()
+    
+    return db_url
+

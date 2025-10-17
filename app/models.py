@@ -32,14 +32,13 @@ class URL(Base):
     owner_id = Column(Integer, ForeignKey("users.id"))
     
     owner = relationship("User", back_populates="urls")
-    clicks = relationship("Click", back_populates="url")
-
+    clicks = relationship("Click", back_populates="url", cascade="all, delete-orphan")
 
 class Click(Base):
     __tablename__ = "clicks"
 
     id = Column(Integer, primary_key=True, index=True)
-    short_code = Column(String(10), ForeignKey("urls.short_code"), nullable=False)
+    short_code = Column(String(10), ForeignKey("urls.short_code", ondelete="CASCADE"), nullable=False)
     
     clicked_at = Column(DateTime(timezone=True), server_default=func.now())
     ip_address = Column(String(45), nullable=True)

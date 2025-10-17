@@ -1,5 +1,5 @@
-from fastapi import FastAPI, Depends, HTTPException, Request, status
-from fastapi.responses import RedirectResponse
+from fastapi import FastAPI, Depends, HTTPException, Request, status, Request, status 
+from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from fastapi.middleware.cors import CORSMiddleware
@@ -81,6 +81,93 @@ async def login_for_access_token(form_data: Annotated[OAuth2PasswordRequestForm,
     access_token = security.create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
 
+
+# New Endpoint
+
+@app.get("/api/me/links", response_model=list[schemas.URLInfo])
+def read_user_links(
+    request: Request, # <-- ADD THE REQUEST DEPENDENCY
+    current_user: schemas.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    
+    # Get the list of URL objects from the database
+    db_links = crud.get_user_links(db=db, owner_id=current_user.id)
+    
+    # Get the base URL (e.g., "http://localhost:8000/")
+    base_url = str(request.base_url)
+    
+    # Manually add the 'short_url' attribute to each link object
+    for link in db_links:
+        link.short_url = f"{base_url}{link.short_code}"
+        
+    return db_links
+
+
+# ADD THIS NEW ENDPOINT 
+@app.get("/api/me/links/recent", response_model=list[schemas.URLInfo])
+def read_user_recent_links(
+    request: Request,
+    current_user: schemas.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    
+    db_links = crud.get_user_recent_links(db=db, owner_id=current_user.id)
+    
+    base_url = str(request.base_url)
+    for link in db_links:
+        link.short_url = f"{base_url}{link.short_code}"
+        
+    return db_links
+# END OF NEW ENDPOINT 
+
+
+# vvv ADD THIS NEW ENDPOINT vvv
+@app.patch("/api/links/{short_code}", response_model=schemas.URLInfo)
+def toggle_link_status(
+    short_code: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_user),
+):
+    
+    db_url = crud.update_db_url_status(db, short_code=short_code, owner_id=current_user.id)
+
+    if not db_url:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Link not found or you do not have permission to modify it.",
+        )
+    
+    # Manually construct the short_url before returning
+    base_url = str(request.base_url)
+    db_url.short_url = f"{base_url}{db_url.short_code}"
+
+    return db_url
+# ^^^ END OF NEW ENDPOINT ^^^
+
+
+# New endpoint
+
+@app.delete("/api/links/{short_code}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_link(
+    short_code: str,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_user),
+):
+    
+    db_url = crud.delete_db_link(db, short_code=short_code, owner_id=current_user.id)
+
+    if not db_url:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Link not found or you do not have permission to delete it.",
+        )
+    
+    return
+#  END OF NEW ENDPOINT 
+
+
 # --- Protected URL Shortening Endpoint ---
 
 @app.post("/api/shorten", response_model=schemas.URLInfo)
@@ -90,7 +177,7 @@ def create_short_url(
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(get_current_user) # <-- THIS PROTECTS THE ENDPOINT
 ):
-    """Creates a short URL for the currently authenticated user."""
+    
     try:
         short_code = utils.create_unique_short_code(db)
         db_url = crud.create_db_url(db, url, short_code, owner_id=current_user.id)
@@ -104,14 +191,24 @@ def create_short_url(
 
 # --- Public Endpoints ---
 
-@app.get("/{short_code}", response_class=RedirectResponse)
+@app.get("/{short_code}") # FIX: Removed response_class=RedirectResponse to allow for multiple response types
 def redirect_to_url(short_code: str, request: Request, db: Session = Depends(get_db)):
     db_url = crud.get_db_url_by_short_code(db, short_code)
+    
     if not db_url:
         raise HTTPException(status_code=404, detail="URL not found")
+        
+    # FIX: This is the key change. We now handle the inactive link case manually.
     if not db_url.is_active:
-        raise HTTPException(status_code=410, detail="This link has been deactivated")
+        # Instead of a simple exception, we return a JSONResponse with cache-control headers.
+        # This tells the browser: "Do not remember this error response."
+        return JSONResponse(
+            status_code=status.HTTP_410_GONE,
+            content={"detail": "This link has been deactivated"},
+            headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+        )
     
+    # If the link is active, proceed as normal.
     log_click_task.delay(
         short_code=short_code,
         ip_address=request.client.host,
@@ -119,6 +216,7 @@ def redirect_to_url(short_code: str, request: Request, db: Session = Depends(get
         referrer=request.headers.get("referer"),
     )
     return RedirectResponse(url=db_url.original_url)
+
 
 @app.get("/api/stats/{short_code}", response_model=schemas.URLStats)
 def get_url_stats(short_code: str, request: Request, db: Session = Depends(get_db)):
